@@ -4,11 +4,7 @@ import '../theme/app_theme.dart';
 
 /// VAXtrust 로고. 이미지 파일이 없어도 앱에서 바로 그립니다.
 class VaxLogo extends StatelessWidget {
-  const VaxLogo({
-    super.key,
-    this.compact = false,
-    this.light = false,
-  });
+  const VaxLogo({super.key, this.compact = false, this.light = false});
 
   final bool compact;
   final bool light;
@@ -28,13 +24,12 @@ class VaxLogo extends StatelessWidget {
           decoration: BoxDecoration(
             color: light ? Colors.white.withValues(alpha: 0.12) : AppColors.ice,
             borderRadius: BorderRadius.circular(size * 0.28),
-            border: Border.all(color: accent.withValues(alpha: 0.55), width: 1.4),
+            border: Border.all(
+              color: accent.withValues(alpha: 0.55),
+              width: 1.4,
+            ),
           ),
-          child: Icon(
-            Icons.ac_unit,
-            color: accent,
-            size: size * 0.58,
-          ),
+          child: Icon(Icons.ac_unit, color: accent, size: size * 0.58),
         ),
         SizedBox(width: compact ? 10 : 14),
         Column(

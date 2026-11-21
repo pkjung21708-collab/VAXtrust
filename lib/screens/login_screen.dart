@@ -1,10 +1,12 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../data/app_database.dart';
+import '../models/app_user.dart';
 import '../theme/app_theme.dart';
 import '../widgets/vax_logo.dart';
-import 'medical_dashboard.dart';
-import 'quality_dashboard.dart';
-import 'shipment_setup_screen.dart';
+import 'role_home.dart';
+import 'signup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -15,66 +17,86 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _idController = TextEditingController();
-  final TextEditingController _passwordController =
-      TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
 
   bool _obscurePassword = true;
+  bool _submitting = false;
   String? _errorMessage;
 
-  final Map<String, Map<String, String>> _demoAccounts = {
-    'courier': {
-      'password': 'demo1234',
-      'role': 'transporter',
-    },
-    'quality': {
-      'password': 'demo1234',
-      'role': 'qualityManager',
-    },
-    'medical': {
-      'password': 'demo1234',
-      'role': 'medicalStaff',
-    },
-  };
+  Future<void> _login() async {
+    if (_submitting) {
+      return;
+    }
+    FocusScope.of(context).unfocus();
 
-    void _login() {
     final String id = _idController.text.trim();
     final String password = _passwordController.text;
-
-    final Map<String, String>? account = _demoAccounts[id];
-
-    if (account == null || account['password'] != password) {
+    if (id.isEmpty || password.isEmpty) {
       setState(() {
-        _errorMessage = '아이디 또는 비밀번호를 확인해 주세요.';
+        _errorMessage = '아이디와 비밀번호를 입력해 주세요.';
+      });
+      return;
+    }
+    if (kIsWeb) {
+      setState(() {
+        _errorMessage = '이 시연은 기기 내부 저장소에서만 로그인할 수 있습니다.';
       });
       return;
     }
 
-    final String role = account['role']!;
+    setState(() {
+      _submitting = true;
+      _errorMessage = null;
+    });
 
-    late final Widget destination;
-
-    switch (role) {
-      case 'transporter':
-        destination = const ShipmentSetupScreen();
-        break;
-      case 'qualityManager':
-        destination = const QualityDashboard();
-        break;
-      case 'medicalStaff':
-        destination = const MedicalDashboard();
-        break;
-      default:
+    try {
+      final AppUser? user = await AppDatabase.instance.authenticate(
+        loginId: id,
+        password: password,
+      );
+      if (!mounted) {
+        return;
+      }
+      if (user == null) {
         setState(() {
-          _errorMessage = '등록되지 않은 사용자 유형입니다.';
+          _errorMessage = '아이디 또는 비밀번호를 확인해 주세요.';
         });
         return;
+      }
+      await AppDatabase.instance.saveSession(user.id);
+      if (!mounted) {
+        return;
+      }
+      openSignedInHome(context, user.role);
+    } on StateError {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _errorMessage = '로컬 저장소를 열 수 없습니다.';
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _errorMessage = '로그인 처리 중 오류가 발생했습니다.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
     }
+  }
 
-    Navigator.of(context).pushAndRemoveUntil(
+  void _openSignup() {
+    if (_submitting) {
+      return;
+    }
+    Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (BuildContext context) => destination,
+        builder: (BuildContext context) => const SignupScreen(),
       ),
-      (route) => false
     );
   }
 
@@ -95,10 +117,7 @@ class _LoginScreenState extends State<LoginScreen> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFF3F8FA),
-              Color(0xFFE7F3F3),
-            ],
+            colors: [Color(0xFFF3F8FA), Color(0xFFE7F3F3)],
           ),
         ),
         child: SafeArea(
@@ -110,12 +129,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Center(
-                      child: VaxLogo(
-                        compact: false,
-                        light: false,
-                      ),
-                    ),
+                    const Center(child: VaxLogo(compact: false, light: false)),
                     const SizedBox(height: 32),
                     const Text(
                       '로그인',
@@ -136,7 +150,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 32),
-
                     const Text(
                       '아이디',
                       style: TextStyle(
@@ -160,9 +173,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                     ),
-
                     const SizedBox(height: 20),
-
                     const Text(
                       '비밀번호',
                       style: TextStyle(
@@ -199,51 +210,63 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                     ),
-
                     if (_errorMessage != null) ...[
                       const SizedBox(height: 12),
                       Text(
                         _errorMessage!,
-                        style: const TextStyle(
-                          color: Colors.red,
-                          fontSize: 13,
-                        ),
+                        style: const TextStyle(color: Colors.red, fontSize: 13),
                       ),
                     ],
-
                     const SizedBox(height: 24),
-
                     SizedBox(
                       height: 54,
                       child: ElevatedButton(
-                        onPressed: _login,
+                        onPressed: _submitting ? null : _login,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.teal,
+                          disabledBackgroundColor: AppColors.teal,
                           foregroundColor: Colors.white,
+                          disabledForegroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
                           ),
                         ),
-                        child: const Text(
-                          '로그인',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                          ),
+                        child: _submitting
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.4,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text(
+                                '로그인',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: _submitting ? null : _openSignup,
+                      child: const Text(
+                        '회원가입',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.teal,
                         ),
                       ),
                     ),
-
-                    const SizedBox(height: 24),
-
+                    const SizedBox(height: 8),
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.8),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: const Color(0xFFDCE8EA),
-                        ),
+                        border: Border.all(color: const Color(0xFFDCE8EA)),
                       ),
                       child: const Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -263,7 +286,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           Text('의료진: medical / demo1234'),
                           SizedBox(height: 8),
                           Text(
-                            '※ 경진대회 시연용 계정입니다.',
+                            '※ 경진대회 시연용 계정입니다. 이 기기에 저장됩니다.',
                             style: TextStyle(
                               fontSize: 11,
                               color: AppColors.textSecondary,

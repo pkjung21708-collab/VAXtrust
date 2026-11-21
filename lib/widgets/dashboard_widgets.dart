@@ -37,8 +37,8 @@ class MetricCard extends StatelessWidget {
           Text(
             value,
             style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
               color: alert ? AppColors.warning : AppColors.textPrimary,
             ),
           ),
@@ -66,10 +66,23 @@ class StatusChip extends StatelessWidget {
       case '적합':
       case '정상':
       case '운송 중':
+      case '운송 완료':
+      case '검토 완료':
         return AppColors.success;
       case '주의':
       case '검토':
+      case '검토 중':
+      case '추가 확인 필요':
         return AppColors.warning;
+      case '등록됨':
+      case '측정 전':
+      case '검토 전':
+      case '낮음':
+      case '정상 범위':
+        return AppColors.teal;
+      case '평가 불가':
+      case '측정 데이터 없음':
+        return AppColors.textSecondary;
       default:
         return AppColors.danger;
     }
@@ -118,8 +131,47 @@ class SectionTitle extends StatelessWidget {
         if (caption != null)
           Text(
             caption!,
-            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
           ),
+      ],
+    );
+  }
+}
+
+/// 긴 설명은 버튼 뒤에 두고, 긴급한 상태는 이 위젯 밖에 둡니다.
+class DisclosureBlock extends StatefulWidget {
+  const DisclosureBlock({
+    super.key,
+    required this.label,
+    required this.child,
+  });
+
+  final String label;
+  final Widget child;
+
+  @override
+  State<DisclosureBlock> createState() => _DisclosureBlockState();
+}
+
+class _DisclosureBlockState extends State<DisclosureBlock> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton(
+            onPressed: () => setState(() => _open = !_open),
+            child: Text(_open ? '닫기' : widget.label),
+          ),
+        ),
+        if (_open) widget.child,
       ],
     );
   }
@@ -138,7 +190,7 @@ class DemoBanner extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
       ),
       child: const Text(
-        '데모 모드 · 서버 없이 임시 데이터로 표시됩니다',
+        '온도 기록은 시연용 가상 데이터입니다. 실제 센서가 측정한 값이 아닙니다.',
         style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w600,

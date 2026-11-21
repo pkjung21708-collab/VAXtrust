@@ -41,9 +41,36 @@ class AppTheme {
           fontWeight: FontWeight.w600,
           color: AppColors.textPrimary,
         ),
-        bodyMedium: TextStyle(
-          height: 1.45,
-          color: AppColors.textSecondary,
+        bodyMedium: TextStyle(height: 1.45, color: AppColors.textSecondary),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          minimumSize: const Size(64, 48),
+          backgroundColor: AppColors.teal,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(64, 48),
+          foregroundColor: AppColors.teal,
+          side: const BorderSide(color: AppColors.teal),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          minimumSize: const Size(48, 40),
+          foregroundColor: AppColors.teal,
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
         ),
       ),
     );

@@ -1,25 +1,170 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart';
+import '../data/app_database.dart';
+import '../data/demo_risk_settings.dart';
+import '../data/demo_temperature_session.dart';
+import '../data/shipment_analytics.dart';
+import '../models/demo_scenario.dart';
+import '../models/quality_review.dart';
+import '../models/shipment_record.dart';
+import '../models/temperature_excursion.dart';
+import '../models/temperature_reading.dart';
+import '../navigation/logout.dart';
 import '../theme/app_theme.dart';
 import '../widgets/dashboard_widgets.dart';
+import '../widgets/shipment_widgets.dart';
 import '../widgets/vax_logo.dart';
+import 'shipment_detail_screen.dart';
 
-class QualityDashboard extends StatelessWidget {
+class QualityDashboard extends StatefulWidget {
   const QualityDashboard({super.key});
+
+  @override
+  State<QualityDashboard> createState() => _QualityDashboardState();
+}
+
+class _QualityDashboardState extends State<QualityDashboard> {
+  List<ShipmentRecord> _shipments = const <ShipmentRecord>[];
+  Map<int, TemperatureReading> _latest = const <int, TemperatureReading>{};
+  Map<int, ExcursionSummary> _excursions = const <int, ExcursionSummary>{};
+  Map<int, ShipmentInsight> _insights = const <int, ShipmentInsight>{};
+  FleetSummary _summary = FleetSummary.empty;
+  QualityReviewCounts _reviewCounts = QualityReviewCounts.empty;
+  Map<int, QualityReview> _reviews = const <int, QualityReview>{};
+  bool _loading = true;
+  String? _loadError;
+
+  @override
+  void initState() {
+    super.initState();
+    DemoTemperatureSession.instance.addListener(_onTemperature);
+    unawaited(_load());
+  }
+
+  @override
+  void dispose() {
+    DemoTemperatureSession.instance.removeListener(_onTemperature);
+    super.dispose();
+  }
+
+  void _onTemperature() {
+    unawaited(_load());
+  }
+
+  Future<void> _load() async {
+    try {
+      final user = await AppDatabase.instance.currentSessionUser();
+      if (!mounted) {
+        return;
+      }
+      if (user == null) {
+        setState(() {
+          _shipments = const <ShipmentRecord>[];
+          _latest = const <int, TemperatureReading>{};
+          _excursions = const <int, ExcursionSummary>{};
+          _insights = const <int, ShipmentInsight>{};
+          _summary = FleetSummary.empty;
+          _reviewCounts = QualityReviewCounts.empty;
+          _reviews = const <int, QualityReview>{};
+          _loading = false;
+          _loadError = null;
+        });
+        return;
+      }
+      final List<ShipmentRecord> shipments = await AppDatabase.instance
+          .shipmentsJoinedBy(user.id);
+      final List<int> ids = shipments
+          .map((ShipmentRecord shipment) => shipment.id)
+          .toList();
+      final Map<int, TemperatureReading> latest = await AppDatabase.instance
+          .latestTemperatures(ids);
+      final Map<int, ExcursionSummary> excursions = await AppDatabase.instance
+          .excursionSummaries(ids);
+      final List<TemperatureReading> readings = await AppDatabase.instance
+          .temperaturesForShipments(ids);
+      final Map<int, List<TemperatureExcursion>> events = await AppDatabase
+          .instance
+          .excursionsByShipment(ids);
+      const ShipmentAnalytics analytics = ShipmentAnalytics();
+      final Map<int, bool> actions = await AppDatabase.instance
+          .recordedExcursionActions(ids);
+      final Map<int, QualityReview> reviews = await AppDatabase.instance
+          .latestQualityReviews(ids);
+      final Map<int, ShipmentInsight> insights = analytics.inspectAll(
+        shipments: shipments,
+        readings: readings,
+        excursions: events,
+        actionRecorded: actions,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _shipments = shipments;
+        _latest = latest;
+        _excursions = excursions;
+        _insights = insights;
+        _summary = analytics.summarize(
+          shipments: shipments,
+          insights: insights.values.toList(),
+        );
+        _reviews = reviews;
+        _reviewCounts = QualityReviewCounts.fromLatest(ids, reviews);
+        _loading = false;
+        _loadError = null;
+      });
+    } on StateError {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _shipments = const <ShipmentRecord>[];
+        _loading = false;
+        _loadError = null;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _loading = false;
+        _loadError = '운송 건을 불러오지 못했습니다.';
+      });
+    }
+  }
+
+  Future<void> _openDetail(int shipmentId) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) =>
+            ShipmentDetailScreen(shipmentId: shipmentId),
+      ),
+    );
+    if (mounted) {
+      await _load();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const VaxLogo(compact: true, light: true),
+        actions: const <Widget>[LogoutAction()],
       ),
       body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: const [
-          DemoBanner(),
-          SizedBox(height: 16),
-          Text(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          20,
+          20,
+          24 + MediaQuery.paddingOf(context).bottom,
+        ),
+        children: [
+          const DemoBanner(),
+          const SizedBox(height: 16),
+          const Text(
             '품질관리자 대시보드',
             style: TextStyle(
               fontSize: 22,
@@ -27,85 +172,157 @@ class QualityDashboard extends StatelessWidget {
               color: AppColors.textPrimary,
             ),
           ),
-          SizedBox(height: 4),
-          Text('로트별 적합도와 온도 이탈을 검토합니다.'),
-          SizedBox(height: 16),
-          Row(
-            children: [
-              MetricCard(
-                label: '평균 적합도',
-                value: '98%',
-                icon: Icons.fact_check_outlined,
-              ),
-              SizedBox(width: 10),
-              MetricCard(
-                label: '검토 필요',
-                value: '1건',
-                icon: Icons.warning_amber_outlined,
-                alert: true,
-              ),
-            ],
+          const SizedBox(height: 4),
+          const Text('운송 상태, 온도 이탈, 품질 검토를 확인합니다.'),
+          const SizedBox(height: 16),
+          _SummaryGrid(
+            summary: _summary,
+            reviews: _reviewCounts,
+            highRiskCount: _insights.values
+                .where(
+                  (ShipmentInsight insight) =>
+                      insight.risk.level == OperationalRiskLevel.high,
+                )
+                .length,
           ),
-          SizedBox(height: 20),
-          SectionTitle(title: '로트 감사', caption: '임시 데이터'),
-          SizedBox(height: 10),
-          _BatchList(),
+          const SizedBox(height: 20),
+          ParticipationCodeJoinCard(onChanged: () => unawaited(_load())),
+          const SizedBox(height: 20),
+          const SectionTitle(title: '연결된 운송 건', caption: '저장된 데이터'),
+          const SizedBox(height: 10),
+          if (_loading)
+            const Text('불러오는 중')
+          else if (_loadError != null)
+            Text(_loadError!, style: const TextStyle(color: AppColors.danger))
+          else if (_shipments.isEmpty)
+            const Text('연결된 운송 건이 없습니다.')
+          else
+            ..._shipments.map(
+              (ShipmentRecord shipment) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: StoredShipmentCard(
+                  shipment: shipment,
+                  kind: ShipmentCardKind.quality,
+                  latest: _latest[shipment.id],
+                  excursion: _excursions[shipment.id],
+                  insight: _insights[shipment.id],
+                  review: _reviews[shipment.id],
+                  onTap: () => _openDetail(shipment.id),
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 }
 
-class _BatchList extends StatelessWidget {
-  const _BatchList();
+class _SummaryGrid extends StatelessWidget {
+  const _SummaryGrid({
+    required this.summary,
+    required this.reviews,
+    required this.highRiskCount,
+  });
+
+  final FleetSummary summary;
+  final QualityReviewCounts reviews;
+  final int highRiskCount;
 
   @override
   Widget build(BuildContext context) {
+    final int needsReview =
+        reviews.notReviewed +
+        reviews.inReview +
+        reviews.needsInformation +
+        reviews.onHold;
     return Column(
-      children: kMockBatches
-          .map(
-            (QualityBatch batch) => Container(
-              margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.card,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFE1EAED)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        batch.lot,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.teal,
-                        ),
-                      ),
-                      const Spacer(),
-                      StatusChip(label: batch.status),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    batch.vaccine,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '적합도 ${batch.compliance}%  ·  온도 이탈 ${batch.excursions}건',
-                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                  ),
-                ],
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: MetricCard(
+                label: '관리 운송 건',
+                value: '${summary.shipmentCount}건',
+                icon: Icons.inventory_2_outlined,
               ),
             ),
-          )
-          .toList(),
+            const SizedBox(width: 10),
+            Expanded(
+              child: MetricCard(
+                label: '검토 필요',
+                value: '$needsReview건',
+                icon: Icons.fact_check_outlined,
+                alert: needsReview > 0,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: MetricCard(
+                label: '위험 높음',
+                value: '$highRiskCount건',
+                icon: Icons.priority_high,
+                alert: highRiskCount > 0,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: MetricCard(
+                label: '검토 전',
+                value: '${reviews.notReviewed}건',
+                icon: Icons.hourglass_empty,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: MetricCard(
+                label: '운송 중',
+                value: '${summary.inTransitCount}건',
+                icon: Icons.route_outlined,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: MetricCard(
+                label: '온도 이탈 발생 운송 건',
+                value: '${summary.shipmentsWithExcursion}건',
+                icon: Icons.thermostat,
+                alert: summary.shipmentsWithExcursion > 0,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: MetricCard(
+                label: '데이터 공백 발생 운송 건',
+                value: '${summary.gapShipmentCount}건',
+                icon: Icons.hourglass_empty,
+                alert: summary.gapShipmentCount > 0,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '검토 중 ${reviews.inReview}건 · 추가 확인 필요 ${reviews.needsInformation}건 · '
+          '사용 보류 ${reviews.onHold}건 · 검토 완료 ${reviews.completed}건',
+          style: const TextStyle(
+            fontSize: 13,
+            height: 1.4,
+            color: AppColors.textSecondary,
+          ),
+        ),
+      ],
     );
   }
 }
