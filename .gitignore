@@ -47,5 +47,14 @@ app.*.map.json
 # Widget Preview related
 .widget_preview/
 
-# Local backups
+# Local backups and snapshots. Keep these files on disk; do not publish them.
 backups/
+app_src.zip
+src-before-*.zip
+*.db
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+*.sqlite-wal
+*.sqlite-shm
