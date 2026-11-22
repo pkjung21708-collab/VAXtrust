@@ -32,7 +32,9 @@ jobs:
         run: flutter pub get
 
       - name: Build web
-        run: flutter build web --release --base-href "/${{ github.event.repository.name }}/"
+        # GitHub Pages 경로는 대소문자를 구분합니다.
+        # 공개 주소는 /VAXtrust/ 이고, repository.name 은 vaxtrust 로 소문자입니다.
+        run: flutter build web --release --base-href "/VAXtrust/"
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
