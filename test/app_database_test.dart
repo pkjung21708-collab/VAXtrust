@@ -34,6 +34,27 @@ void main() {
     }
   });
 
+  test('웹이 아니면 시연 초기화가 데이터베이스 파일을 지우지 않는다', () async {
+    final File file = File(databasePath);
+    expect(await file.exists(), isTrue);
+    final int sizeBefore = await file.length();
+
+    await expectLater(
+      database.deleteWebDemoDatabase(),
+      throwsA(
+        isA<StateError>().having(
+          (StateError error) => error.message,
+          'message',
+          contains('iOS 저장소'),
+        ),
+      ),
+    );
+
+    expect(await file.exists(), isTrue);
+    expect(await file.length(), sizeBefore);
+    expect(await database.tableRows('users'), isEmpty);
+  });
+
   test('PBKDF2-HMAC-SHA256 테스트 벡터와 일치한다', () {
     final Uint8List key = PasswordHasher.deriveKey(
       password: utf8.encode('password'),

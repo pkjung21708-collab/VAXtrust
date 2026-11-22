@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../data/app_database.dart';
@@ -98,8 +97,6 @@ class _SignupScreenState extends State<SignupScreen> {
       error = '비밀번호가 서로 다릅니다.';
     } else if (_role == null) {
       error = '역할을 선택해 주세요.';
-    } else if (kIsWeb) {
-      error = '이 시연은 기기 내부 저장소에서만 가입할 수 있습니다.';
     }
 
     if (error != null) {

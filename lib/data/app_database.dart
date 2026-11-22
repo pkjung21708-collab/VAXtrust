@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
@@ -304,6 +305,17 @@ class AppDatabase {
     if (current != null && current.isOpen) {
       await current.close();
     }
+  }
+
+  /// 웹 브라우저의 시연 데이터베이스만 지웁니다.
+  /// iOS 파일은 이 메서드로 닫거나 삭제하지 않습니다.
+  Future<void> deleteWebDemoDatabase() async {
+    if (!kIsWeb) {
+      throw StateError('iOS 저장소는 웹 시연 초기화로 지우지 않습니다.');
+    }
+    final String filePath = _databasePath ?? await _defaultPath();
+    await close();
+    await (_factory ?? databaseFactory).deleteDatabase(filePath);
   }
 
   Future<Set<String>> columnNames(String table) async {

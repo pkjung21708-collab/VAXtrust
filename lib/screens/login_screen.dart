@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../data/app_database.dart';
+import '../data/demo_temperature_session.dart';
 import '../models/app_user.dart';
 import '../theme/app_theme.dart';
 import '../widgets/vax_logo.dart';
@@ -34,12 +35,6 @@ class _LoginScreenState extends State<LoginScreen> {
     if (id.isEmpty || password.isEmpty) {
       setState(() {
         _errorMessage = '아이디와 비밀번호를 입력해 주세요.';
-      });
-      return;
-    }
-    if (kIsWeb) {
-      setState(() {
-        _errorMessage = '이 시연은 기기 내부 저장소에서만 로그인할 수 있습니다.';
       });
       return;
     }
@@ -81,6 +76,83 @@ class _LoginScreenState extends State<LoginScreen> {
       }
       setState(() {
         _errorMessage = '로그인 처리 중 오류가 발생했습니다.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
+    }
+  }
+
+  Future<void> _loginAsDemo(String loginId) {
+    _idController.text = loginId;
+    _passwordController.text = 'demo1234';
+    return _login();
+  }
+
+  Future<void> _resetWebDemo() async {
+    if (!kIsWeb || _submitting) {
+      return;
+    }
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('이 브라우저의 시연 데이터를 지울까요?'),
+          content: const Text(
+            '이 브라우저에 저장된 계정, 운송, 온도, 인수인계, 품질 검토 기록이 삭제되고 '
+            '시연 계정 세 개가 다시 만들어집니다. '
+            '다른 브라우저와 아이폰 앱의 데이터는 바뀌지 않습니다.',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('취소'),
+            ),
+            TextButton(
+              key: const Key('confirm-web-reset'),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('초기화'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _submitting = true;
+      _errorMessage = null;
+    });
+    try {
+      DemoTemperatureSession.instance.pauseGeneration();
+      await AppDatabase.instance.deleteWebDemoDatabase();
+      await AppDatabase.instance.open();
+      await AppDatabase.instance.clearSession();
+      await AppDatabase.instance.ensureDemoAccounts();
+      DemoTemperatureSession.instance.attach();
+      await DemoTemperatureSession.instance.restore();
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('이 브라우저의 시연 데이터를 초기화했습니다.')),
+      );
+    } on StateError {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _errorMessage = '이 브라우저의 저장소를 초기화할 수 없습니다.';
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _errorMessage = '시연 데이터를 초기화하는 중 오류가 발생했습니다.';
       });
     } finally {
       if (mounted) {
@@ -268,30 +340,64 @@ class _LoginScreenState extends State<LoginScreen> {
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(color: const Color(0xFFDCE8EA)),
                       ),
-                      child: const Column(
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
+                          const Text(
                             '시연용 계정',
                             style: TextStyle(
                               fontWeight: FontWeight.w700,
                               color: AppColors.textPrimary,
                             ),
                           ),
-                          SizedBox(height: 10),
-                          Text('운송자: courier / demo1234'),
-                          SizedBox(height: 4),
-                          Text('품질관리자: quality / demo1234'),
-                          SizedBox(height: 4),
-                          Text('의료진: medical / demo1234'),
-                          SizedBox(height: 8),
+                          const SizedBox(height: 10),
+                          const Text('운송자: courier / demo1234'),
+                          const SizedBox(height: 4),
+                          const Text('품질관리자: quality / demo1234'),
+                          const SizedBox(height: 4),
+                          const Text('의료진: medical / demo1234'),
+                          const SizedBox(height: 8),
                           Text(
-                            '※ 경진대회 시연용 계정입니다. 이 기기에 저장됩니다.',
-                            style: TextStyle(
+                            kIsWeb
+                                ? '이 브라우저에만 저장됩니다. 다른 브라우저, 시크릿 창, 아이폰 앱과는 데이터가 공유되지 않습니다.'
+                                : '※ 경진대회 시연용 계정입니다. 이 기기에 저장됩니다.',
+                            style: const TextStyle(
                               fontSize: 11,
                               color: AppColors.textSecondary,
                             ),
                           ),
+                          if (kIsWeb) ...<Widget>[
+                            const SizedBox(height: 12),
+                            OutlinedButton(
+                              key: const Key('demo-login-courier'),
+                              onPressed: _submitting
+                                  ? null
+                                  : () => _loginAsDemo('courier'),
+                              child: const Text('운송자로 입장'),
+                            ),
+                            const SizedBox(height: 8),
+                            OutlinedButton(
+                              key: const Key('demo-login-quality'),
+                              onPressed: _submitting
+                                  ? null
+                                  : () => _loginAsDemo('quality'),
+                              child: const Text('품질관리자로 입장'),
+                            ),
+                            const SizedBox(height: 8),
+                            OutlinedButton(
+                              key: const Key('demo-login-medical'),
+                              onPressed: _submitting
+                                  ? null
+                                  : () => _loginAsDemo('medical'),
+                              child: const Text('의료진으로 입장'),
+                            ),
+                            const SizedBox(height: 8),
+                            TextButton(
+                              key: const Key('web-demo-reset'),
+                              onPressed: _submitting ? null : _resetWebDemo,
+                              child: const Text('이 브라우저의 시연 데이터 초기화'),
+                            ),
+                          ],
                         ],
                       ),
                     ),

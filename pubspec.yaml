@@ -34,8 +34,10 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
-  # iOS와 Android의 로컬 SQLite입니다. 웹 저장소는 이번 시연에 넣지 않습니다.
+  # iOS와 Android는 sqflite가 기기 파일을 엽니다.
+  # 웹은 main에서만 sqflite_common_ffi_web 팩토리로 같은 API를 엽니다.
   sqflite: ^2.4.5
+  sqflite_common_ffi_web: ^1.2.2
   path: ^1.9.1
   # 비밀번호는 소금과 PBKDF2 해시만 저장할 때 사용합니다.
   crypto: ^3.0.8
